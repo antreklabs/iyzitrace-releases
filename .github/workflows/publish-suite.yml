@@ -1,0 +1,81 @@
+# Seed for the PUBLIC releases repo (antreklabs/iyzitrace-releases).
+# Copy this file there as .github/workflows/publish-suite.yml.
+#
+# One suite = one public release carrying BOTH sides of a compatible pair:
+# the plugin zip (from the private plugin repo's release) and the platform
+# bundle (from the private platform repo's release). The suite tag is the
+# plugin version — it is what the update banner compares against.
+#
+# Required repo secret:
+#   SOURCE_REPOS_TOKEN — fine-grained PAT with contents:read on
+#     antreklabs/iyzitrace and antreklabs/iyzitrace-observability-platform.
+name: Publish suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      plugin_tag:
+        description: 'Plugin release tag on antreklabs/iyzitrace (e.g. v1.0.10)'
+        required: true
+      bundle_tag:
+        description: 'Bundle release tag on antreklabs/iyzitrace-observability-platform (e.g. bundle-v0.0.2)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download plugin release assets
+        env:
+          GH_TOKEN: ${{ secrets.SOURCE_REPOS_TOKEN }}
+        run: |
+          mkdir -p suite
+          gh release download "${{ inputs.plugin_tag }}" \
+            --repo antreklabs/iyzitrace --dir suite
+
+      - name: Download platform bundle + CLI assets
+        env:
+          GH_TOKEN: ${{ secrets.SOURCE_REPOS_TOKEN }}
+        run: |
+          gh release download "${{ inputs.bundle_tag }}" \
+            --repo antreklabs/iyzitrace-observability-platform --dir suite
+
+      - name: Add the versionless bundle alias the CLI defaults to
+        # `iyzitrace init` fetches releases/latest/download/iyzitrace-bundle.tar.gz,
+        # so every suite must carry the bundle under that fixed name too. The
+        # .sha256 sibling is re-stated for the alias so --require-checksum works.
+        run: |
+          set -euo pipefail
+          cd suite
+          tarball=$(ls iyzitrace-bundle-*.tar.gz)
+          cp "$tarball" iyzitrace-bundle.tar.gz
+          sha=$(sha256sum iyzitrace-bundle.tar.gz | cut -d' ' -f1)
+          printf '%s  iyzitrace-bundle.tar.gz\n' "$sha" > iyzitrace-bundle.tar.gz.sha256
+
+      - name: Create the public suite release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          bundle_version="${{ inputs.bundle_tag }}"
+          bundle_version="${bundle_version#bundle-v}"
+          plugin_version="${{ inputs.plugin_tag }}"
+          plugin_version="${plugin_version#v}"
+          {
+            echo "Compatible release suite — install both sides from this page."
+            echo
+            echo "| Component | Version |"
+            echo "|---|---|"
+            echo "| Plugin (antreklabs-iyzitrace-app) | ${plugin_version} |"
+            echo "| Platform bundle | ${bundle_version} |"
+            echo
+            echo "See the README for installation steps."
+          } > notes.md
+          gh release create "${{ inputs.plugin_tag }}" suite/* \
+            --repo "${{ github.repository }}" \
+            --title "iyzitrace ${{ inputs.plugin_tag }}" \
+            --notes-file notes.md \
+            --latest
