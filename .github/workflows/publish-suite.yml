@@ -1,13 +1,14 @@
-# Seed for the PUBLIC releases repo (antreklabs/iyzitrace-releases).
-# Copy this file there as .github/workflows/publish-suite.yml.
-#
-# One suite = one public release carrying BOTH sides of a compatible pair:
-# the plugin zip (from the private plugin repo's release) and the platform
-# bundle (from the private platform repo's release). The suite tag is the
-# plugin version — it is what the update banner compares against.
+# One run publishes THREE releases on this public repo:
+#   plugin-v<X.Y.Z>   — mirror of the private plugin release (zip + sha1)
+#   bundle-v<A.B.C>   — mirror of the private platform release (bundle + CLI)
+#   v<X.Y.Z>          — the compatibility suite: both sides on one page,
+#                       marked Latest (the update banner and the CLI's
+#                       latest/download default both read this one)
 #
 # Inputs left empty resolve to each source repo's LATEST release, so the
 # common case ("publish what both repos just released") is a bare Run.
+# A mirror whose tag already exists is skipped (re-pairing an old side with
+# a new one re-uses the existing mirror).
 #
 # Required repo secret:
 #   SOURCE_REPOS_TOKEN — fine-grained PAT with contents:read on
@@ -18,11 +19,11 @@ on:
   workflow_dispatch:
     inputs:
       plugin_tag:
-        description: 'Plugin release tag on antreklabs/iyzitrace (e.g. v1.0.10; empty = latest release)'
+        description: 'Plugin release tag on antreklabs/iyzitrace (e.g. v1.0.15; empty = latest release)'
         required: false
         default: ''
       bundle_tag:
-        description: 'Bundle release tag on antreklabs/iyzitrace-observability-platform (e.g. bundle-v0.0.2; empty = latest release)'
+        description: 'Bundle release tag on antreklabs/iyzitrace-observability-platform (e.g. bundle-v0.0.5; empty = latest release)'
         required: false
         default: ''
 
@@ -49,22 +50,57 @@ jobs:
           fi
           echo "plugin=$plugin" >> "$GITHUB_OUTPUT"
           echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
-          echo "Publishing suite: plugin $plugin + platform $bundle"
+          echo "Publishing: plugin $plugin + platform $bundle"
 
       - name: Download plugin release assets
         env:
           GH_TOKEN: ${{ secrets.SOURCE_REPOS_TOKEN }}
         run: |
-          mkdir -p suite
+          mkdir -p plugin
           gh release download "${{ steps.tags.outputs.plugin }}" \
-            --repo antreklabs/iyzitrace --dir suite
+            --repo antreklabs/iyzitrace --dir plugin
 
       - name: Download platform bundle + CLI assets
         env:
           GH_TOKEN: ${{ secrets.SOURCE_REPOS_TOKEN }}
         run: |
+          mkdir -p platform
           gh release download "${{ steps.tags.outputs.bundle }}" \
-            --repo antreklabs/iyzitrace-observability-platform --dir suite
+            --repo antreklabs/iyzitrace-observability-platform --dir platform
+
+      - name: Publish the plugin mirror release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pv="${{ steps.tags.outputs.plugin }}"; pv="${pv#v}"
+          tag="plugin-v${pv}"
+          if gh release view "$tag" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "$tag already published, skipping mirror."
+            exit 0
+          fi
+          gh release create "$tag" plugin/* \
+            --repo "${{ github.repository }}" \
+            --title "plugin v${pv}" \
+            --notes "Grafana plugin **antreklabs-iyzitrace-app v${pv}**, standalone. Pairs with the platform version named in suite release v${pv}. Prefer installing both sides from a suite (v*) release page." \
+            --latest=false
+
+      - name: Publish the platform mirror release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          bv="${{ steps.tags.outputs.bundle }}"; bv="${bv#bundle-v}"
+          tag="bundle-v${bv}"
+          if gh release view "$tag" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "$tag already published, skipping mirror."
+            exit 0
+          fi
+          gh release create "$tag" platform/* \
+            --repo "${{ github.repository }}" \
+            --title "platform bundle v${bv}" \
+            --notes "IyziTrace platform **bundle v${bv}** with CLI binaries, standalone. Prefer installing both sides from a suite (v*) release page." \
+            --latest=false
 
       - name: Add the versionless bundle alias the CLI defaults to
         # `iyzitrace init` fetches releases/latest/download/iyzitrace-bundle.tar.gz,
@@ -72,13 +108,15 @@ jobs:
         # .sha256 sibling is re-stated for the alias so --require-checksum works.
         run: |
           set -euo pipefail
+          mkdir -p suite
+          cp plugin/* platform/* suite/
           cd suite
           tarball=$(ls iyzitrace-bundle-*.tar.gz)
           cp "$tarball" iyzitrace-bundle.tar.gz
           sha=$(sha256sum iyzitrace-bundle.tar.gz | cut -d' ' -f1)
           printf '%s  iyzitrace-bundle.tar.gz\n' "$sha" > iyzitrace-bundle.tar.gz.sha256
 
-      - name: Create the public suite release
+      - name: Publish the suite release (Latest)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -90,10 +128,10 @@ jobs:
           {
             echo "Compatible release suite — install both sides from this page."
             echo
-            echo "| Component | Version |"
-            echo "|---|---|"
-            echo "| Plugin (antreklabs-iyzitrace-app) | ${plugin_version} |"
-            echo "| Platform bundle | ${bundle_version} |"
+            echo "| Component | Version | Standalone mirror |"
+            echo "|---|---|---|"
+            echo "| Plugin (antreklabs-iyzitrace-app) | ${plugin_version} | [plugin-v${plugin_version}](https://github.com/${{ github.repository }}/releases/tag/plugin-v${plugin_version}) |"
+            echo "| Platform bundle | ${bundle_version} | [bundle-v${bundle_version}](https://github.com/${{ github.repository }}/releases/tag/bundle-v${bundle_version}) |"
             echo
             echo "See the README for installation steps."
           } > notes.md
