@@ -6,6 +6,9 @@
 # bundle (from the private platform repo's release). The suite tag is the
 # plugin version — it is what the update banner compares against.
 #
+# Inputs left empty resolve to each source repo's LATEST release, so the
+# common case ("publish what both repos just released") is a bare Run.
+#
 # Required repo secret:
 #   SOURCE_REPOS_TOKEN — fine-grained PAT with contents:read on
 #     antreklabs/iyzitrace and antreklabs/iyzitrace-observability-platform.
@@ -15,11 +18,13 @@ on:
   workflow_dispatch:
     inputs:
       plugin_tag:
-        description: 'Plugin release tag on antreklabs/iyzitrace (e.g. v1.0.10)'
-        required: true
+        description: 'Plugin release tag on antreklabs/iyzitrace (e.g. v1.0.10; empty = latest release)'
+        required: false
+        default: ''
       bundle_tag:
-        description: 'Bundle release tag on antreklabs/iyzitrace-observability-platform (e.g. bundle-v0.0.2)'
-        required: true
+        description: 'Bundle release tag on antreklabs/iyzitrace-observability-platform (e.g. bundle-v0.0.2; empty = latest release)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -28,19 +33,37 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve source tags (empty input = latest release)
+        id: tags
+        env:
+          GH_TOKEN: ${{ secrets.SOURCE_REPOS_TOKEN }}
+        run: |
+          set -euo pipefail
+          plugin="${{ inputs.plugin_tag }}"
+          if [ -z "$plugin" ]; then
+            plugin=$(gh api repos/antreklabs/iyzitrace/releases/latest --jq .tag_name)
+          fi
+          bundle="${{ inputs.bundle_tag }}"
+          if [ -z "$bundle" ]; then
+            bundle=$(gh api repos/antreklabs/iyzitrace-observability-platform/releases/latest --jq .tag_name)
+          fi
+          echo "plugin=$plugin" >> "$GITHUB_OUTPUT"
+          echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
+          echo "Publishing suite: plugin $plugin + platform $bundle"
+
       - name: Download plugin release assets
         env:
           GH_TOKEN: ${{ secrets.SOURCE_REPOS_TOKEN }}
         run: |
           mkdir -p suite
-          gh release download "${{ inputs.plugin_tag }}" \
+          gh release download "${{ steps.tags.outputs.plugin }}" \
             --repo antreklabs/iyzitrace --dir suite
 
       - name: Download platform bundle + CLI assets
         env:
           GH_TOKEN: ${{ secrets.SOURCE_REPOS_TOKEN }}
         run: |
-          gh release download "${{ inputs.bundle_tag }}" \
+          gh release download "${{ steps.tags.outputs.bundle }}" \
             --repo antreklabs/iyzitrace-observability-platform --dir suite
 
       - name: Add the versionless bundle alias the CLI defaults to
@@ -60,9 +83,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          bundle_version="${{ inputs.bundle_tag }}"
+          bundle_version="${{ steps.tags.outputs.bundle }}"
           bundle_version="${bundle_version#bundle-v}"
-          plugin_version="${{ inputs.plugin_tag }}"
+          plugin_version="${{ steps.tags.outputs.plugin }}"
           plugin_version="${plugin_version#v}"
           {
             echo "Compatible release suite — install both sides from this page."
@@ -74,8 +97,8 @@ jobs:
             echo
             echo "See the README for installation steps."
           } > notes.md
-          gh release create "${{ inputs.plugin_tag }}" suite/* \
+          gh release create "${{ steps.tags.outputs.plugin }}" suite/* \
             --repo "${{ github.repository }}" \
-            --title "iyzitrace ${{ inputs.plugin_tag }}" \
+            --title "iyzitrace ${{ steps.tags.outputs.plugin }}" \
             --notes-file notes.md \
             --latest
