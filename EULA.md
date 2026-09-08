@@ -1,6 +1,6 @@
 # IyziTrace Grafana Plugin — End-User Licence Agreement
 
-**Version 1.0 · Draft — requires legal review before use in sales.**
+**Version 1.0**
 
 This Agreement is between IYZI Trace ("we", "us") and the individual or entity
 installing or using the IyziTrace Grafana plugin ("you"). By installing or using
