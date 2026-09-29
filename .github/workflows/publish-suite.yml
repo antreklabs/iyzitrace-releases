@@ -82,7 +82,7 @@ jobs:
           gh release create "$tag" plugin/* \
             --repo "${{ github.repository }}" \
             --title "plugin v${pv}" \
-            --notes "Grafana plugin **antreklabs-iyzitrace-app v${pv}**, standalone. Pairs with the platform version named in suite release v${pv}. Prefer installing both sides from a suite (v*) release page." \
+            --notes "Grafana plugin **antreklabs-iyzitraceclassic-app v${pv}**, standalone. Pairs with the platform version named in suite release v${pv}. Prefer installing both sides from a suite (v*) release page." \
             --latest=false
 
       - name: Publish the platform mirror release
@@ -130,7 +130,7 @@ jobs:
             echo
             echo "| Component | Version | Standalone mirror |"
             echo "|---|---|---|"
-            echo "| Plugin (antreklabs-iyzitrace-app) | ${plugin_version} | [plugin-v${plugin_version}](https://github.com/${{ github.repository }}/releases/tag/plugin-v${plugin_version}) |"
+            echo "| Plugin (antreklabs-iyzitraceclassic-app) | ${plugin_version} | [plugin-v${plugin_version}](https://github.com/${{ github.repository }}/releases/tag/plugin-v${plugin_version}) |"
             echo "| Platform bundle | ${bundle_version} | [bundle-v${bundle_version}](https://github.com/${{ github.repository }}/releases/tag/bundle-v${bundle_version}) |"
             echo
             echo "See the README for installation steps."
