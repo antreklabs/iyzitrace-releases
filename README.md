@@ -10,7 +10,7 @@ release list is the compatibility matrix.
 
 | Asset | What it is |
 |---|---|
-| `antreklabs-iyzitrace-app-<version>.zip` (+ `.sha1`) | The Grafana app plugin |
+| `antreklabs-iyzitraceclassic-app-<version>.zip` (+ `.sha1`) | The Grafana app plugin |
 | `iyzitrace-bundle.tar.gz` (+ `.sha256`) | Platform bundle (compose file, config templates) — always the latest suite |
 | `iyzitrace-bundle-<version>.tar.gz` (+ `.sha256`) | The same bundle, version-pinned |
 | `iyzitrace-<version>-<os>-<arch>` (+ `.sha256`) | The `iyzitrace` installer CLI |
@@ -176,12 +176,12 @@ plugin catalog and install the version matching your platform suite.
 
 **Manual install from this page:**
 
-1. Download `antreklabs-iyzitrace-app-<version>.zip` from the same release you
+1. Download `antreklabs-iyzitraceclassic-app-<version>.zip` from the same release you
    installed the platform from and unzip it into Grafana's plugin directory
    (`/var/lib/grafana/plugins` by default):
 
    ```bash
-   unzip antreklabs-iyzitrace-app-<version>.zip -d /var/lib/grafana/plugins
+   unzip antreklabs-iyzitraceclassic-app-<version>.zip -d /var/lib/grafana/plugins
    ```
 
 2. Restart Grafana, then enable the **IyziTrace** app under
