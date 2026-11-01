@@ -17,6 +17,12 @@ release list is the compatibility matrix.
 
 CLI binaries are published for `linux` and `darwin`, `amd64` and `arm64`.
 
+## Release notes
+
+What changed in each release, and how to upgrade to it:
+
+- [1.4.0](release-notes/1.4.0.md), with the upgrade from 1.2.0
+
 ---
 
 ## Installing the platform (CLI)
